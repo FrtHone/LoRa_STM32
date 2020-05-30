@@ -59,9 +59,9 @@ SPI_HandleTypeDef hspi1;
 TIM_HandleTypeDef htim11;
 
 /* USER CODE BEGIN PV */
-uint8_t TXbuffer[8] = {0x02, 0x00, 0x00, 0xff};
+uint8_t TXbuffer[8] = {0};
 uint8_t RXbuffer[8] = {0};
-uint8_t tfs=0;
+uint8_t colorcnt=0;
 uint32_t Fre[5] = {470800000, 494600000, 510000000, 868000000, 915000000};
 int16_t SNR = 0;
 int16_t RSSI = 0;
@@ -136,10 +136,11 @@ int main(void)
   }
   
   Show_Str(192, 224, BLACK, WHITE, "MASTER", 16, 0);
-  Show_Str(0, 40, BLACK, WHITE, "RH:  0.0, TEMP:  0.0, DBG: 0", 16, 0);
+  Show_Str(0, 40, BLACK, WHITE, "RH:  0.0, TEMP:  0.0", 16, 0);
   Show_Str(0, 56, BLACK, WHITE, "G:   0, R:   0, B:   0", 16, 0);
   Show_Str(0, 72, BLACK, WHITE, "SNR:   0, RSSI:   0", 16, 0);
   Show_Str(0, 88, BLACK, WHITE, "ENV_RSSI: 0", 16, 0);
+  Show_Str(0, 104, BLACK, WHITE, "Lock Status:", 16, 0);
 //  HAL_TIM_Base_Stop_IT(&htim11);
 //  MX_TIM11_Init_Ms(5000);
 //  HAL_TIM_Base_Start_IT(&htim11);//¶¨Ê±2s¿ªÆô
@@ -158,20 +159,13 @@ int main(void)
       
       case TX_ING:
         HAL_Delay(50);
-//        memset(TXbuffer, 0x00, sizeof(TXbuffer));
         DIO0_EnableInterrupt();
         SX127X_TxPacket(TXbuffer);
-        LCD_ShowNum(24, 56, TXbuffer[1], 3, 16);
-        LCD_ShowNum(88, 56, TXbuffer[2], 3, 16);
-        LCD_ShowNum(152, 56, TXbuffer[3], 3, 16);
-        tfs=TXbuffer[1];
-        TXbuffer[1]=TXbuffer[2];
-        TXbuffer[2]=TXbuffer[3];
-        TXbuffer[3]=tfs;
         communication_states = APP_IDLE;
         break;
       
       case TX_DONE:
+        SX127X_StandbyMode();
         DIO0_EnableInterrupt();
         SX127X_StartRx();
         communication_states = APP_IDLE;
@@ -221,10 +215,29 @@ int main(void)
           LCD_ShowNum(56, 40, RXbuffer[2], 1, 16);
           LCD_ShowNum(128, 40, RXbuffer[3], 2, 16);
           LCD_ShowNum(152, 40, RXbuffer[4], 1, 16);
-          LCD_ShowNum(216, 40, RXbuffer[5], 2, 16);
+        }
+        else
+        {
+          if(RXbuffer[0]==0x02)
+          {
+          }
+          else
+          {
+            if(RXbuffer[0]==0x03)
+            {
+              if(RXbuffer[1]==0x77)
+              {
+                Show_Str(104, 104, BLACK, WHITE, "Closed", 16, 0);
+              }
+              else
+              {
+                Show_Str(104, 104, BLACK, WHITE, "Open  ", 16, 0);
+              }
+            }
+          }
         }
         
-        communication_states = TX_ING;
+        communication_states = TX_DONE;
         break;
       
       default:
@@ -406,8 +419,19 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_PULLDOWN;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
+  /*Configure GPIO pins : PA8 PA9 PA10 PA11 
+                           PA12 */
+  GPIO_InitStruct.Pin = GPIO_PIN_8|GPIO_PIN_9|GPIO_PIN_10|GPIO_PIN_11 
+                          |GPIO_PIN_12;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
   /* EXTI interrupt init*/
-  HAL_NVIC_SetPriority(EXTI15_10_IRQn, 0, 0);
+  HAL_NVIC_SetPriority(EXTI9_5_IRQn, 1, 0);
+  HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
+
+  HAL_NVIC_SetPriority(EXTI15_10_IRQn, 1, 0);
   HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
 
 }
@@ -445,23 +469,108 @@ void MX_TIM11_Init_Ms(uint16_t time)
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
-  if(DIO0_GetState() == GPIO_PIN_SET)
+  if(GPIO_Pin==GPIO_PIN_13||GPIO_Pin==GPIO_PIN_14||GPIO_Pin==GPIO_PIN_15)
   {
-    uint8_t flag;
-    SX127X_Read(REG_LR_IRQFLAGS, &flag);
-    SX127X_Write(REG_LR_IRQFLAGS, 0xff); //clear flags
-    if(flag & RFLR_IRQFLAGS_TXDONE)
+    if(DIO0_GetState() == GPIO_PIN_SET)
     {
-      communication_states = TX_DONE;
-    }
-    else
-    {
-      if(flag & RFLR_IRQFLAGS_RXDONE)
+      uint8_t flag;
+      SX127X_Read(REG_LR_IRQFLAGS, &flag);
+      SX127X_Write(REG_LR_IRQFLAGS, 0xff); //clear flags
+      if(flag & RFLR_IRQFLAGS_TXDONE)
       {
-        communication_states = RX_DONE;
+        communication_states = TX_DONE;
+      }
+      else
+      {
+        if(flag & RFLR_IRQFLAGS_RXDONE)
+        {
+          communication_states = RX_DONE;
+        }
       }
     }
   }
+  if(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_8)==GPIO_PIN_RESET)
+  {
+    HAL_Delay(10);
+    if(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_8)==GPIO_PIN_RESET)
+    {
+      TXbuffer[0]=0x02;
+      if(colorcnt==0)
+      {
+        TXbuffer[1]=0xff;
+        TXbuffer[2]=0xff;
+        TXbuffer[3]=0xff;
+        colorcnt++;
+      }
+      else
+      {
+        if(colorcnt==1)
+        {
+          TXbuffer[1]=0x00;
+          TXbuffer[2]=0xff;
+          TXbuffer[3]=0x00;
+          colorcnt++;
+        }
+        else
+        {
+          if(colorcnt==2)
+          {
+            TXbuffer[1]=0xff;
+            TXbuffer[2]=0x00;
+            TXbuffer[3]=0x00;
+            colorcnt++;
+          }
+          else
+          {
+            if(colorcnt==3)
+            {
+              TXbuffer[1]=0x00;
+              TXbuffer[2]=0x00;
+              TXbuffer[3]=0xff;
+              colorcnt++;
+            }
+            else
+            {
+              TXbuffer[1]=0x00;
+              TXbuffer[2]=0x00;
+              TXbuffer[3]=0x00;
+              colorcnt=0;
+            }
+          }
+        }
+      }
+      LCD_ShowNum(24, 56, TXbuffer[1], 3, 16);
+      LCD_ShowNum(88, 56, TXbuffer[2], 3, 16);
+      LCD_ShowNum(152, 56, TXbuffer[3], 3, 16);
+      communication_states = TX_ING;
+    }
+  }
+  if(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_9)==GPIO_PIN_RESET)
+  {
+    HAL_Delay(10);
+    if(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_9)==GPIO_PIN_RESET)
+    {
+      TXbuffer[0]=0x03;
+      TXbuffer[2]=0xff;
+      communication_states = TX_ING;
+    }
+  }
+  if(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_10)==GPIO_PIN_RESET)
+  {
+    HAL_Delay(10);
+    if(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_10)==GPIO_PIN_RESET)
+    {
+      TXbuffer[0]=0x01;
+      TXbuffer[5]=0xff;
+      communication_states = TX_ING;
+    }
+  }
+//  if(GPIO_Pin==GPIO_PIN_11)
+//  {
+//  }
+//  if(GPIO_Pin==GPIO_PIN_12)
+//  {
+//  }
 }
 
 //void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)

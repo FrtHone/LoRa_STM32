@@ -146,7 +146,7 @@ int main(void)
 //  HAL_TIM_Base_Start_IT(&htim11);
   HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
   WS2812B_Init();
-//  setAllPixelColor(0x00, 0x00, 0x00);
+//  setAllPixelColor(0xff, 0xff, 0xff);
 //  WS2812B_Show();
   /* USER CODE END 2 */
 

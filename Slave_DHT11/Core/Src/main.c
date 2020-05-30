@@ -66,9 +66,9 @@ TIM_HandleTypeDef htim11;
 
 /* USER CODE BEGIN PV */
 uint8_t TXbuffer[8] = {0};
+uint8_t RXbuffer[8] = {0};
 uint32_t Fre[5] = {470800000, 494600000, 510000000, 868000000, 915000000};
 uint8_t communication_states;
-uint8_t testcnt=1;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -138,8 +138,11 @@ int main(void)
   }
   
   HAL_TIM_Base_Stop_IT(&htim11);
-  MX_TIM11_Init_Ms(2000);
-  HAL_TIM_Base_Start_IT(&htim11);
+  
+  DIO0_EnableInterrupt();
+  SX127X_StartRx();
+//  MX_TIM11_Init_Ms(2000);
+//  HAL_TIM_Base_Start_IT(&htim11);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -161,15 +164,6 @@ int main(void)
           TXbuffer[2]=getdata.Rh_deci;
           TXbuffer[3]=getdata.temp_int;
           TXbuffer[4]=getdata.temp_deci;
-          TXbuffer[5]=testcnt;
-        }
-        if(testcnt==99)
-        {
-          testcnt=0;
-        }
-        else
-        {
-          testcnt++;
         }
         DIO0_EnableInterrupt();
         SX127X_TxPacket(TXbuffer);
@@ -177,9 +171,23 @@ int main(void)
         break;
       
       case TX_DONE:
+        SX127X_StandbyMode();
+        DIO0_EnableInterrupt();
+        SX127X_StartRx();
+        communication_states = APP_IDLE;
         break;
       
       case RX_DONE:
+        DIO0_DisableInterrupt();
+        SX127X_RxPacket(RXbuffer);
+        if(RXbuffer[0]==0x01 && RXbuffer[5]==0xff)
+        {
+          communication_states = TX_ING;
+        }
+        else
+        {
+          communication_states = TX_DONE;
+        }
         break;
       
       default:

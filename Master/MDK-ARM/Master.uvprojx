@@ -338,7 +338,7 @@
               <MiscControls></MiscControls>
               <Define>USE_HAL_DRIVER,STM32L151xBA</Define>
               <Undefine></Undefine>
-              <IncludePath>../Core/Inc;../Drivers/STM32L1xx_HAL_Driver/Inc;../Drivers/STM32L1xx_HAL_Driver/Inc/Legacy;../Drivers/CMSIS/Device/ST/STM32L1xx/Include;../Drivers/CMSIS/Include;../Drivers/LCD;../Drivers/SX127X</IncludePath>
+              <IncludePath>../Core/Inc;  ../Drivers/STM32L1xx_HAL_Driver/Inc;  ../Drivers/STM32L1xx_HAL_Driver/Inc/Legacy;  ../Drivers/CMSIS/Device/ST/STM32L1xx/Include;  ../Drivers/CMSIS/Include;  ../Drivers/LCD;  ../Drivers/SX127X</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
